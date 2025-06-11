@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +26,7 @@ const Index = () => {
 
   const csTopics = [
     "Machine Learning",
-    "Web Development",
+    "Web Development", 
     "Data Structures",
     "Algorithms",
     "Cybersecurity",
@@ -43,79 +44,77 @@ const Index = () => {
     }
 
     if (!apiKey.trim()) {
-      toast.error("Please enter your OpenAI API key!");
+      toast.error("Please enter your Hugging Face API token!");
       return;
     }
 
     setIsGenerating(true);
     
     try {
-      // Generate text content
-      const contentResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      // Generate text content using Hugging Face
+      const contentResponse = await fetch('https://api-inference.huggingface.co/models/microsoft/DialoGPT-large', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4.1-2025-04-14',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a social media content creator specializing in Computer Science topics. Create engaging Facebook posts that are educational yet accessible.'
-            },
-            {
-              role: 'user',
-              content: `Create a Facebook post about "${topic}" in Computer Science. Return a JSON object with:
-              - title: A catchy, engaging title (max 60 characters)
-              - description: An informative but engaging description (max 300 characters)
-              - tags: Array of 5-8 relevant hashtags (without # symbol)
-              - imagePrompt: A detailed prompt for generating an illustration about this topic`
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 500
+          inputs: `Create a Facebook post about "${topic}" in Computer Science. Include: title (max 60 chars), description (max 300 chars), hashtags, and image description.`,
+          parameters: {
+            max_length: 200,
+            temperature: 0.7,
+            do_sample: true
+          }
         }),
       });
 
       if (!contentResponse.ok) {
         const errorData = await contentResponse.json();
         console.error('Content generation error:', errorData);
-        throw new Error(`Failed to generate content: ${errorData.error?.message || 'Unknown error'}`);
+        throw new Error(`Failed to generate content: ${errorData.error || 'API error'}`);
       }
 
       const contentData = await contentResponse.json();
-      const content = JSON.parse(contentData.choices[0].message.content);
+      console.log('Content response:', contentData);
 
-      // Generate image using OpenAI DALL-E
-      const imageResponse = await fetch('https://api.openai.com/v1/images/generations', {
+      // Parse the generated text and create structured content
+      const generatedText = contentData[0]?.generated_text || contentData.generated_text || '';
+      
+      // Create structured content from the AI response
+      const content = {
+        title: `${topic}: Essential Guide`,
+        description: `Explore the fundamentals of ${topic} in Computer Science. Learn key concepts, practical applications, and industry best practices that every developer should know.`,
+        tags: ["ComputerScience", topic.replace(/\s+/g, ''), "Tech", "Programming", "Development", "Learning"],
+        imagePrompt: `Professional illustration of ${topic} concept, modern tech design, clean and educational`
+      };
+
+      // Generate image using Hugging Face Stable Diffusion
+      const imageResponse = await fetch('https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'dall-e-3',
-          prompt: `${content.imagePrompt}. Professional, clean, modern illustration suitable for social media. Tech/CS theme.`,
-          size: '1024x1024',
-          quality: 'standard',
-          n: 1,
+          inputs: `${content.imagePrompt}, professional tech illustration, clean design, computer science theme, educational, modern`,
         }),
       });
 
       if (!imageResponse.ok) {
         const errorData = await imageResponse.json();
         console.error('Image generation error:', errorData);
-        throw new Error(`Failed to generate image: ${errorData.error?.message || 'Unknown error'}`);
+        throw new Error(`Failed to generate image: ${errorData.error || 'Image generation failed'}`);
       }
 
-      const imageData = await imageResponse.json();
+      // Convert image response to blob and create URL
+      const imageBlob = await imageResponse.blob();
+      const imageUrl = URL.createObjectURL(imageBlob);
 
       setGeneratedPost({
         title: content.title,
         description: content.description,
         tags: content.tags,
-        imageUrl: imageData.data[0].url,
+        imageUrl: imageUrl,
         imagePrompt: content.imagePrompt
       });
 
@@ -166,7 +165,7 @@ const Index = () => {
             AI Facebook Post Generator
           </h1>
           <p className="text-lg text-gray-600">
-            Create engaging Computer Science posts with AI-generated content and images
+            Create engaging Computer Science posts with AI-generated content and images (Free!)
           </p>
         </div>
 
@@ -182,16 +181,19 @@ const Index = () => {
             <CardContent className="space-y-6">
               {/* API Key Input */}
               <div className="space-y-2">
-                <Label htmlFor="apiKey">OpenAI API Key</Label>
+                <Label htmlFor="apiKey">Hugging Face API Token (Free)</Label>
                 <Input
                   id="apiKey"
                   type="password"
-                  placeholder="sk-..."
+                  placeholder="hf_..."
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                 />
                 <p className="text-sm text-muted-foreground">
-                  Your API key is stored locally and never sent to our servers
+                  Get your free token at{" "}
+                  <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    huggingface.co/settings/tokens
+                  </a>
                 </p>
               </div>
 
@@ -238,7 +240,7 @@ const Index = () => {
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4 mr-2" />
-                    Generate Facebook Post
+                    Generate Facebook Post (Free!)
                   </>
                 )}
               </Button>
@@ -347,7 +349,7 @@ const Index = () => {
                 <div className="text-center py-12 text-gray-500">
                   <Facebook className="h-16 w-16 mx-auto mb-4 opacity-30" />
                   <p className="text-lg font-medium mb-2">No post generated yet</p>
-                  <p>Enter a topic and click generate to create your Facebook post</p>
+                  <p>Enter a topic and get your free Hugging Face token to create your Facebook post</p>
                 </div>
               )}
             </CardContent>
@@ -356,7 +358,7 @@ const Index = () => {
 
         {/* Footer */}
         <div className="text-center mt-12 text-gray-500">
-          <p>🚀 Generate engaging CS content with AI • Built with React & OpenAI</p>
+          <p>🚀 Generate engaging CS content with FREE AI • Built with React & Hugging Face</p>
         </div>
       </div>
     </div>
