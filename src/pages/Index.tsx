@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,7 +58,7 @@ const Index = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4',
+          model: 'gpt-4.1-2025-04-14',
           messages: [
             {
               role: 'system',
@@ -80,7 +79,9 @@ const Index = () => {
       });
 
       if (!contentResponse.ok) {
-        throw new Error('Failed to generate content');
+        const errorData = await contentResponse.json();
+        console.error('Content generation error:', errorData);
+        throw new Error(`Failed to generate content: ${errorData.error?.message || 'Unknown error'}`);
       }
 
       const contentData = await contentResponse.json();
@@ -103,7 +104,9 @@ const Index = () => {
       });
 
       if (!imageResponse.ok) {
-        throw new Error('Failed to generate image');
+        const errorData = await imageResponse.json();
+        console.error('Image generation error:', errorData);
+        throw new Error(`Failed to generate image: ${errorData.error?.message || 'Unknown error'}`);
       }
 
       const imageData = await imageResponse.json();
@@ -119,7 +122,7 @@ const Index = () => {
       toast.success("Facebook post generated successfully!");
     } catch (error) {
       console.error('Error generating content:', error);
-      toast.error("Failed to generate content. Please check your API key and try again.");
+      toast.error(`Failed to generate content. ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
