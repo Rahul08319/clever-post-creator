@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -51,59 +50,47 @@ const Index = () => {
     setIsGenerating(true);
     
     try {
-      // Generate text content using Hugging Face
-      const contentResponse = await fetch('https://api-inference.huggingface.co/models/microsoft/DialoGPT-large', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          inputs: `Create a Facebook post about "${topic}" in Computer Science. Include: title (max 60 chars), description (max 300 chars), hashtags, and image description.`,
-          parameters: {
-            max_length: 200,
-            temperature: 0.7,
-            do_sample: true
-          }
-        }),
-      });
-
-      if (!contentResponse.ok) {
-        const errorData = await contentResponse.json();
-        console.error('Content generation error:', errorData);
-        throw new Error(`Failed to generate content: ${errorData.error || 'API error'}`);
-      }
-
-      const contentData = await contentResponse.json();
-      console.log('Content response:', contentData);
-
-      // Parse the generated text and create structured content
-      const generatedText = contentData[0]?.generated_text || contentData.generated_text || '';
-      
-      // Create structured content from the AI response
+      // Create structured content (fallback approach since text generation is having issues)
       const content = {
         title: `${topic}: Essential Guide`,
-        description: `Explore the fundamentals of ${topic} in Computer Science. Learn key concepts, practical applications, and industry best practices that every developer should know.`,
+        description: `Explore the fundamentals of ${topic} in Computer Science. Learn key concepts, practical applications, and industry best practices that every developer should know. Perfect for students and professionals looking to advance their skills.`,
         tags: ["ComputerScience", topic.replace(/\s+/g, ''), "Tech", "Programming", "Development", "Learning"],
-        imagePrompt: `Professional illustration of ${topic} concept, modern tech design, clean and educational`
+        imagePrompt: `Professional illustration of ${topic} concept, modern tech design, clean and educational, computer science theme`
       };
 
-      // Generate image using Hugging Face Stable Diffusion
-      const imageResponse = await fetch('https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2', {
+      console.log('Generating image with prompt:', content.imagePrompt);
+
+      // Generate image using a reliable Stable Diffusion model
+      const imageResponse = await fetch('https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          inputs: `${content.imagePrompt}, professional tech illustration, clean design, computer science theme, educational, modern`,
+          inputs: `${content.imagePrompt}, professional, high quality, detailed, modern design, educational poster style`,
         }),
       });
 
+      console.log('Image response status:', imageResponse.status);
+
       if (!imageResponse.ok) {
-        const errorData = await imageResponse.json();
-        console.error('Image generation error:', errorData);
-        throw new Error(`Failed to generate image: ${errorData.error || 'Image generation failed'}`);
+        let errorMessage = `HTTP ${imageResponse.status}`;
+        try {
+          const errorText = await imageResponse.text();
+          console.log('Image error response:', errorText);
+          
+          // Try to parse as JSON first
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error || errorText;
+          } catch {
+            errorMessage = errorText;
+          }
+        } catch {
+          errorMessage = `Failed to generate image: ${imageResponse.status}`;
+        }
+        throw new Error(errorMessage);
       }
 
       // Convert image response to blob and create URL
@@ -165,7 +152,7 @@ const Index = () => {
             AI Facebook Post Generator
           </h1>
           <p className="text-lg text-gray-600">
-            Create engaging Computer Science posts with AI-generated content and images (Free!)
+            Create engaging Computer Science posts with AI-generated images (Free!)
           </p>
         </div>
 
