@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Facebook,
   Linkedin,
@@ -30,19 +30,25 @@ import {
   Flame,
   Zap,
   Globe,
-  Github
+  Github,
+  Code2,
+  Volume2,
+  VolumeX,
+  Edit3,
+  Image as ImageIcon
 } from "lucide-react";
 import { toast } from "sonner";
 import { TemporalEngine } from "@/core";
 
 type PlatformType = "facebook" | "linkedin" | "twitter" | "instagram";
-
 type ToneType = "visionary" | "insider" | "educational" | "storyteller" | "concise";
 
 interface SocialPost {
   title: string;
   hook: string;
   body: string;
+  codeSnippet?: string;
+  codeLanguage?: string;
   bulletPoints: string[];
   takeaway: string;
   tags: string[];
@@ -52,7 +58,6 @@ interface SocialPost {
   timestamp: string;
 }
 
-// Curated high-aesthetic CS visual assets for instant realistic preview
 const PRESET_CS_IMAGES: Record<string, string> = {
   "Machine Learning": "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=1200&auto=format&fit=crop",
   "Artificial Intelligence": "https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1200&auto=format&fit=crop",
@@ -65,8 +70,57 @@ const PRESET_CS_IMAGES: Record<string, string> = {
   default: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=1200&auto=format&fit=crop"
 };
 
+const CODE_PRESETS: Record<string, { lang: string; code: string }> = {
+  "Autonomous Agent Swarms": {
+    lang: "typescript",
+    code: `// Deterministic Agent Consensus Loop
+interface AgentMessage {
+  senderId: string;
+  judgment: "commit" | "abort";
+  confidence: number;
+}
+
+async function reconcileSwarm(agents: AgentMessage[]): Promise<boolean> {
+  const quorum = agents.filter(a => a.judgment === "commit" && a.confidence > 0.85);
+  return quorum.length >= Math.ceil(agents.length * 0.67);
+}`
+  },
+  "Neuromorphic Architecture": {
+    lang: "rust",
+    code: `// Spiking Neural Network Synapse Weight Update
+pub fn stdp_update(delta_t: f32, weight: &mut f32, a_plus: f32, tau_plus: f32) {
+    if delta_t > 0.0 {
+        *weight += a_plus * (-delta_t / tau_plus).exp();
+    }
+}`
+  },
+  "Post-Quantum Cryptography": {
+    lang: "go",
+    code: `// Kyber-1024 Lattice Decapsulation
+func Decapsulate(sk []byte, ciphertext []byte) ([]byte, error) {
+    sharedKey, err := mlkem.Decapsulate(sk, ciphertext)
+    if err != nil {
+        return nil, fmt.Errorf("decapsulation failed: %w", err)
+    }
+    return sharedKey, nil
+}`
+  },
+  default: {
+    lang: "typescript",
+    code: `// Resilient Step Replay with Idempotency Key
+export async function executeStep<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const cached = await storage.get(key);
+  if (cached) return cached;
+  const result = await fn();
+  await storage.set(key, result);
+  return result;
+}`
+  }
+};
+
 const Index = () => {
-  const currentYear = TemporalEngine.getCurrentYear();
+  const currentBaseYear = TemporalEngine.getCurrentYear();
+  const [selectedYear, setSelectedYear] = useState(currentBaseYear);
   const roadmapYears = TemporalEngine.getRoadmapYears(4);
 
   const [topic, setTopic] = useState("Autonomous Agent Swarms");
@@ -76,20 +130,50 @@ const Index = () => {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("hf_api_token") || "");
   const [isCopied, setIsCopied] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [reactionsCount, setReactionsCount] = useState(142);
-  const [hasReacted, setHasReacted] = useState(false);
+  const [includeCode, setIncludeCode] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [reactionsCount, setReactionsCount] = useState(148);
+  const [activeReaction, setActiveReaction] = useState<string>("👍");
+  const [showReactionDock, setShowReactionDock] = useState(false);
 
-  // Initialize generated post with modern realistic default
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Synthesize Apple-like click sound
+  const playHapticSound = () => {
+    if (!soundEnabled) return;
+    try {
+      const AudioContext = window.AudioContext || (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.04);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.04);
+    } catch {
+      // AudioContext muted or not allowed
+    }
+  };
+
   const [generatedPost, setGeneratedPost] = useState<SocialPost>({
-    title: `Autonomous Agent Swarms: The Architectural Shift of ${currentYear}`,
+    title: `Autonomous Agent Swarms: The Architectural Shift of ${selectedYear}`,
     hook: "Single LLM prompts are yesterday's paradigm. The real frontier is deterministic multi-agent orchestration.",
     body: `We are witnessing a fundamental leap from monolithic model prompts to durable, distributed agent swarms. Instead of asking one reasoning engine to tackle full workflows, modern architectures divide intent into focused, typed judgments with bounded state machines and fault-tolerant event loops.`,
+    codeSnippet: CODE_PRESETS["Autonomous Agent Swarms"].code,
+    codeLanguage: CODE_PRESETS["Autonomous Agent Swarms"].lang,
     bulletPoints: [
       "Decoupled roles with distinct memory scopes and isolated tools",
       "Durable step replay that survives runtime restarts and latency spikes",
       "Event-driven consensus protocols eliminating token hallucination spirals"
     ],
-    takeaway: `The winners of ${currentYear} and ${currentYear + 1} will not be those with the biggest models, but those with the cleanest orchestration boundaries.`,
+    takeaway: `The winners of ${selectedYear} and ${selectedYear + 1} will not be those with the biggest models, but those with the cleanest orchestration boundaries.`,
     tags: ["ArtificialIntelligence", "AgentSwarms", "SoftwareArchitecture", "FutureTech", "ComputerScience"],
     imageUrl: PRESET_CS_IMAGES["Machine Learning"],
     imagePrompt: "Futuristic multi-agent holographic network nodes communicating with crystalline neural connections, ultra-clean Apple aesthetics, studio lighting",
@@ -97,7 +181,6 @@ const Index = () => {
     timestamp: TemporalEngine.formatRelativeTime()
   });
 
-  // Dark mode effect
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add("dark");
@@ -106,13 +189,12 @@ const Index = () => {
     }
   }, [isDarkMode]);
 
-  // Save API key to localStorage
   const handleApiKeyChange = (val: string) => {
     setApiKey(val);
     localStorage.setItem("hf_api_token", val);
   };
 
-  const trendingTopics = TemporalEngine.getTrendingTopicsForYear(currentYear);
+  const trendingTopics = TemporalEngine.getTrendingTopicsForYear(selectedYear);
 
   const generateContent = async () => {
     if (!topic.trim()) {
@@ -120,21 +202,20 @@ const Index = () => {
       return;
     }
 
+    playHapticSound();
     setIsGenerating(true);
-    setHasReacted(false);
 
     try {
       const cleanTopic = topic.trim();
       const sanitizedTag = cleanTopic.replace(/[^a-zA-Z0-9]/g, "");
 
-      // Dynamic tone customization
       let hook = "";
       let toneDescription = "";
       let takeaway = "";
 
       switch (tone) {
         case "visionary":
-          hook = `In ${currentYear}, ${cleanTopic} is completely redefining the boundary between human intent and machine execution.`;
+          hook = `In ${selectedYear}, ${cleanTopic} is completely redefining the boundary between human intent and machine execution.`;
           toneDescription = `A transformative breakdown of why ${cleanTopic} will dominate software engineering for the next decade.`;
           takeaway = `Don't optimize for legacy standards. Architect around ${cleanTopic} today to build enduring systems.`;
           break;
@@ -155,7 +236,7 @@ const Index = () => {
           break;
         case "insider":
         default:
-          hook = `The quiet revolution in ${cleanTopic}: what top engineering teams are shipping right now in ${currentYear}.`;
+          hook = `The quiet revolution in ${cleanTopic}: what top engineering teams are shipping right now in ${selectedYear}.`;
           toneDescription = `Deep-dive exploration of the technical trade-offs, architecture patterns, and real-world performance metrics behind ${cleanTopic}.`;
           takeaway = `Clean abstractions beat complex prompt chains every single time.`;
           break;
@@ -163,7 +244,6 @@ const Index = () => {
 
       let imageUrl = PRESET_CS_IMAGES[cleanTopic] || PRESET_CS_IMAGES.default;
 
-      // If user provided a Hugging Face API key, attempt live Stable Diffusion generation
       if (apiKey.trim()) {
         try {
           toast.info("Connecting to Hugging Face Inference API...");
@@ -186,19 +266,21 @@ const Index = () => {
             imageUrl = URL.createObjectURL(blob);
             toast.success("AI Image generated via Hugging Face!");
           } else {
-            console.warn("Hugging Face API returned non-200. Falling back to high-res studio preset.");
             toast.info("Using studio visual preset for ultra-fast render.");
           }
-        } catch (apiErr) {
-          console.warn("Hugging Face API fetch failed. Using fallback preset.", apiErr);
+        } catch {
           toast.info("Switched to high-res studio visual preset.");
         }
       }
 
+      const codePreset = CODE_PRESETS[cleanTopic] || CODE_PRESETS.default;
+
       const newPost: SocialPost = {
-        title: `${cleanTopic}: The ${currentYear} Engineering Blueprint`,
+        title: `${cleanTopic}: The ${selectedYear} Engineering Blueprint`,
         hook,
         body: toneDescription,
+        codeSnippet: includeCode ? codePreset.code : undefined,
+        codeLanguage: codePreset.lang,
         bulletPoints: [
           `Fundamental invariant: Decouple ${cleanTopic} from volatile state`,
           `High-throughput benchmark: Sub-10ms latency thresholds`,
@@ -210,7 +292,7 @@ const Index = () => {
           sanitizedTag,
           "TechEngineering",
           "SoftwareArchitecture",
-          `Tech${currentYear}`
+          `Tech${selectedYear}`
         ],
         imageUrl,
         imagePrompt: `Clean, modern visual concept of ${cleanTopic} with Apple Liquid Glass aesthetic`,
@@ -219,7 +301,7 @@ const Index = () => {
       };
 
       setGeneratedPost(newPost);
-      setReactionsCount(Math.floor(Math.random() * 80) + 95);
+      setReactionsCount(Math.floor(Math.random() * 80) + 115);
       toast.success("Crafted with Apple HIG aesthetic!");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Generation failed";
@@ -230,6 +312,7 @@ const Index = () => {
   };
 
   const copyToClipboard = (text: string, label: string = "Copied to clipboard!") => {
+    playHapticSound();
     navigator.clipboard.writeText(text);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
@@ -238,41 +321,132 @@ const Index = () => {
 
   const getFullFormattedText = () => {
     if (!generatedPost) return "";
-    return `${generatedPost.title}\n\n${generatedPost.hook}\n\n${generatedPost.body}\n\nKey Takeaways:\n${generatedPost.bulletPoints.map((b) => `• ${b}`).join("\n")}\n\n💡 ${generatedPost.takeaway}\n\n${generatedPost.tags.map((t) => `#${t}`).join(" ")}`;
-  };
-
-  const downloadImage = async () => {
-    if (!generatedPost?.imageUrl) return;
-    try {
-      const response = await fetch(generatedPost.imageUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${generatedPost.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      toast.success("Visual asset downloaded!");
-    } catch {
-      toast.error("Could not download image directly. You can right-click and save!");
+    let str = `${generatedPost.title}\n\n${generatedPost.hook}\n\n${generatedPost.body}\n\nKey Takeaways:\n${generatedPost.bulletPoints.map((b) => `• ${b}`).join("\n")}`;
+    if (generatedPost.codeSnippet) {
+      str += `\n\nCode (${generatedPost.codeLanguage}):\n${generatedPost.codeSnippet}`;
     }
+    str += `\n\n💡 ${generatedPost.takeaway}\n\n${generatedPost.tags.map((t) => `#${t}`).join(" ")}`;
+    return str;
   };
 
-  const handleToggleReaction = () => {
-    if (!hasReacted) {
-      setReactionsCount((prev) => prev + 1);
-      setHasReacted(true);
-      toast.success("Reaction added!");
+  // Render social card to Canvas and download
+  const downloadGeneratedCard = () => {
+    playHapticSound();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    canvas.width = 1200;
+    canvas.height = 630;
+
+    // Background gradient - Apple style
+    const bgGrad = ctx.createLinearGradient(0, 0, 1200, 630);
+    if (isDarkMode) {
+      bgGrad.addColorStop(0, "#0b0f19");
+      bgGrad.addColorStop(0.5, "#131b2e");
+      bgGrad.addColorStop(1, "#080c14");
     } else {
-      setReactionsCount((prev) => prev - 1);
-      setHasReacted(false);
+      bgGrad.addColorStop(0, "#f8fafc");
+      bgGrad.addColorStop(0.5, "#e2e8f0");
+      bgGrad.addColorStop(1, "#f1f5f9");
     }
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, 1200, 630);
+
+    // Glowing orb
+    const radial = ctx.createRadialGradient(900, 200, 10, 900, 200, 450);
+    radial.addColorStop(0, "rgba(59, 130, 246, 0.25)");
+    radial.addColorStop(1, "rgba(59, 130, 246, 0)");
+    ctx.fillStyle = radial;
+    ctx.fillRect(0, 0, 1200, 630);
+
+    // Glass Card Frame
+    ctx.fillStyle = isDarkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.85)";
+    ctx.strokeStyle = isDarkMode ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.08)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(60, 60, 1080, 510, 28);
+    ctx.fill();
+    ctx.stroke();
+
+    // Brand Badge
+    ctx.fillStyle = "#2563eb";
+    ctx.beginPath();
+    ctx.roundRect(100, 100, 200, 38, 12);
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 15px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("✦ CLEVER POST", 125, 124);
+
+    // Year Badge
+    ctx.fillStyle = isDarkMode ? "#94a3b8" : "#64748b";
+    ctx.font = "600 16px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(`Horizon ${selectedYear} Edition`, 320, 124);
+
+    // Post Title
+    ctx.fillStyle = isDarkMode ? "#ffffff" : "#0f172a";
+    ctx.font = "bold 38px -apple-system, BlinkMacSystemFont, sans-serif";
+    const titleWords = generatedPost.title.split(" ");
+    let line1 = "";
+    let line2 = "";
+    for (const w of titleWords) {
+      if ((line1 + " " + w).length < 34) {
+        line1 += (line1 ? " " : "") + w;
+      } else {
+        line2 += (line2 ? " " : "") + w;
+      }
+    }
+    ctx.fillText(line1, 100, 200);
+    if (line2) {
+      ctx.fillText(line2, 100, 248);
+    }
+
+    // Hook
+    ctx.fillStyle = isDarkMode ? "#cbd5e1" : "#334155";
+    ctx.font = "500 22px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(generatedPost.hook.slice(0, 80) + "...", 100, 310);
+
+    // Bullet points
+    ctx.fillStyle = isDarkMode ? "#94a3b8" : "#475569";
+    ctx.font = "18px -apple-system, BlinkMacSystemFont, sans-serif";
+    generatedPost.bulletPoints.slice(0, 2).forEach((bp, idx) => {
+      ctx.fillText(`• ${bp}`, 100, 365 + idx * 36);
+    });
+
+    // Author and date footer inside card
+    ctx.fillStyle = isDarkMode ? "#f8fafc" : "#0f172a";
+    ctx.font = "bold 20px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(`By ${generatedPost.author}`, 100, 490);
+
+    ctx.fillStyle = "#3b82f6";
+    ctx.font = "500 16px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(generatedPost.tags.map(t => `#${t}`).slice(0, 4).join(" "), 100, 520);
+
+    // Trigger PNG download
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${generatedPost.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_social_card.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast.success("High-resolution Social Card exported!");
+  };
+
+  const handleSelectReaction = (emoji: string) => {
+    playHapticSound();
+    setActiveReaction(emoji);
+    setReactionsCount(prev => prev + 1);
+    setShowReactionDock(false);
+    toast.success(`Reacted with ${emoji}!`);
   };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 transition-colors duration-500 relative overflow-x-hidden">
+      <canvas ref={canvasRef} className="hidden" />
+
       {/* Background ambient lighting - Apple Liquid Glass glow */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-400/10 dark:bg-blue-600/10 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse" />
       <div className="absolute top-1/3 right-10 w-[30rem] h-[30rem] bg-indigo-400/10 dark:bg-purple-600/10 rounded-full blur-3xl pointer-events-none -z-10 animate-float" />
@@ -289,21 +463,48 @@ const Index = () => {
               <div className="flex items-center gap-2">
                 <span className="font-semibold tracking-tight text-base sm:text-lg">Clever Post Creator</span>
                 <Badge variant="secondary" className="text-[11px] font-medium tracking-wide bg-blue-500/10 text-blue-600 dark:text-blue-400 border-none">
-                  v2.{currentYear % 100} • Liquid Glass
+                  Liquid Glass Studio
                 </Badge>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
-                Apple HIG Architecture • Multi-Year Auto Calibration
+                Apple HIG Architecture • Horizon {selectedYear}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Dynamic Multi-Year Badge */}
-            <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-200/60 dark:bg-slate-800/60 text-xs font-medium text-slate-600 dark:text-slate-300">
-              <Calendar className="w-3.5 h-3.5 text-blue-500" />
-              <span>Valid: {roadmapYears[0]}–{roadmapYears[roadmapYears.length - 1]}</span>
+            {/* Multi-Year Timeline Switcher */}
+            <div className="hidden lg:flex items-center gap-1 bg-slate-200/60 dark:bg-slate-800/60 p-1 rounded-xl text-xs font-medium">
+              <Calendar className="w-3.5 h-3.5 text-blue-500 ml-1.5 mr-1" />
+              {roadmapYears.map(yr => (
+                <button
+                  key={yr}
+                  onClick={() => {
+                    playHapticSound();
+                    setSelectedYear(yr);
+                  }}
+                  className={`px-2 py-1 rounded-lg transition-all ${
+                    selectedYear === yr
+                      ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm font-semibold"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  {yr}
+                </button>
+              ))}
             </div>
+
+            {/* Sound Toggle */}
+            <button
+              onClick={() => {
+                setSoundEnabled(!soundEnabled);
+                toast.info(soundEnabled ? "Audio feedback muted" : "Audio feedback enabled");
+              }}
+              title="Toggle tactile sound"
+              className="p-2.5 rounded-xl bg-slate-200/50 hover:bg-slate-200 dark:bg-slate-800/50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 apple-button"
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4 text-blue-500" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+            </button>
 
             {/* GitHub Repo Link */}
             <a
@@ -318,7 +519,10 @@ const Index = () => {
 
             {/* Dark / Light Mode Toggle */}
             <button
-              onClick={() => setIsDarkMode(!isDarkMode)}
+              onClick={() => {
+                playHapticSound();
+                setIsDarkMode(!isDarkMode);
+              }}
               aria-label="Toggle theme"
               className="p-2.5 rounded-xl bg-slate-200/50 hover:bg-slate-200 dark:bg-slate-800/50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-all apple-button"
             >
@@ -334,7 +538,7 @@ const Index = () => {
         <div className="text-center max-w-3xl mx-auto pt-4 space-y-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 dark:bg-blue-400/10 text-blue-600 dark:text-blue-400 text-xs font-semibold tracking-wide border border-blue-500/20">
             <Zap className="w-3.5 h-3.5" />
-            <span>Built for Computer Science Creators & Engineers</span>
+            <span>Built for Computer Science Creators & Architects</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.15]">
@@ -342,7 +546,7 @@ const Index = () => {
           </h1>
 
           <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 font-normal leading-relaxed">
-            Craft viral, high-converting social media posts with AI-assisted clarity, Apple-inspired typography, and authentic multi-platform previews.
+            Craft viral, high-converting social media posts with AI-assisted clarity, Apple-inspired typography, code windows, and authentic multi-platform previews.
           </p>
         </div>
 
@@ -358,7 +562,7 @@ const Index = () => {
                     Creation Parameters
                   </span>
                   <Badge variant="outline" className="font-mono text-[11px] font-normal border-slate-300 dark:border-slate-700">
-                    Step 1 of 2
+                    Horizon {selectedYear}
                   </Badge>
                 </CardTitle>
               </CardHeader>
@@ -373,6 +577,7 @@ const Index = () => {
                     <button
                       type="button"
                       onClick={() => {
+                        playHapticSound();
                         const random = trendingTopics[Math.floor(Math.random() * trendingTopics.length)];
                         setTopic(random);
                       }}
@@ -395,14 +600,17 @@ const Index = () => {
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                     <Flame className="w-3.5 h-3.5 text-amber-500" />
-                    Frontier Topics ({currentYear})
+                    Frontier Topics ({selectedYear})
                   </Label>
                   <div className="flex flex-wrap gap-1.5">
                     {trendingTopics.map((item) => (
                       <button
                         key={item}
                         type="button"
-                        onClick={() => setTopic(item)}
+                        onClick={() => {
+                          playHapticSound();
+                          setTopic(item);
+                        }}
                         className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all ${
                           topic === item
                             ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
@@ -415,7 +623,7 @@ const Index = () => {
                   </div>
                 </div>
 
-                {/* Tone Selector - Apple Segmented Control */}
+                {/* Tone Selector */}
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Voice & Narrative Tone
@@ -433,7 +641,10 @@ const Index = () => {
                       <button
                         key={t.id}
                         type="button"
-                        onClick={() => setTone(t.id)}
+                        onClick={() => {
+                          playHapticSound();
+                          setTone(t.id);
+                        }}
                         className={`text-xs py-2 px-1 rounded-lg font-medium transition-all text-center apple-button ${
                           tone === t.id
                             ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm font-semibold"
@@ -446,14 +657,31 @@ const Index = () => {
                   </div>
                 </div>
 
-                {/* API Key (Optional with Auto-Fallback) */}
+                {/* Code Snippet Option */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50">
+                  <div className="flex items-center gap-2">
+                    <Code2 className="w-4 h-4 text-blue-500" />
+                    <div>
+                      <p className="text-xs font-semibold">Include Code Window</p>
+                      <p className="text-[11px] text-slate-500">macOS terminal snippet for developers</p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={includeCode}
+                    onChange={(e) => setIncludeCode(e.target.checked)}
+                    className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                  />
+                </div>
+
+                {/* API Key (Optional) */}
                 <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="apiKey" className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
                       Hugging Face API Key
                     </Label>
-                    <span className="text-[11px] text-slate-400">Optional (Instant Studio Fallback Active)</span>
+                    <span className="text-[11px] text-slate-400">Optional</span>
                   </div>
                   <Input
                     id="apiKey"
@@ -464,7 +692,7 @@ const Index = () => {
                     className="h-10 rounded-xl bg-slate-100/70 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-xs font-mono"
                   />
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Free tokens available at{" "}
+                    Get free token at{" "}
                     <a
                       href="https://huggingface.co/settings/tokens"
                       target="_blank"
@@ -473,11 +701,11 @@ const Index = () => {
                     >
                       huggingface.co/settings/tokens
                     </a>
-                    . Kept 100% locally on your machine.
+                    . Kept 100% locally.
                   </p>
                 </div>
 
-                {/* Generate Button with Apple Fluid Press */}
+                {/* Generate Button */}
                 <Button
                   onClick={generateContent}
                   disabled={isGenerating || !topic.trim()}
@@ -499,22 +727,30 @@ const Index = () => {
             </Card>
 
             {/* Quick Export Actions */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <Button
                 variant="outline"
                 onClick={() => copyToClipboard(getFullFormattedText(), "Full post copied to clipboard!")}
                 className="rounded-xl h-11 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-xs apple-button"
               >
-                {isCopied ? <Check className="w-4 h-4 mr-2 text-emerald-500" /> : <Copy className="w-4 h-4 mr-2" />}
-                Copy Full Text
+                {isCopied ? <Check className="w-4 h-4 mr-1 text-emerald-500" /> : <Copy className="w-4 h-4 mr-1" />}
+                Copy Text
               </Button>
               <Button
                 variant="outline"
-                onClick={downloadImage}
+                onClick={downloadGeneratedCard}
                 className="rounded-xl h-11 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-xs apple-button"
               >
-                <Download className="w-4 h-4 mr-2 text-blue-500" />
-                Save Image
+                <ImageIcon className="w-4 h-4 mr-1 text-cyan-500" />
+                Social Card
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsEditing(!isEditing)}
+                className="rounded-xl h-11 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-xs apple-button"
+              >
+                <Edit3 className="w-4 h-4 mr-1 text-blue-500" />
+                {isEditing ? "Done" : "Edit"}
               </Button>
             </div>
           </div>
@@ -537,7 +773,10 @@ const Index = () => {
                   return (
                     <button
                       key={p.id}
-                      onClick={() => setPlatform(p.id)}
+                      onClick={() => {
+                        playHapticSound();
+                        setPlatform(p.id);
+                      }}
                       className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all apple-button ${
                         isActive
                           ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm"
@@ -551,6 +790,33 @@ const Index = () => {
                 })}
               </div>
             </div>
+
+            {/* Inline Editor (if editing mode toggled) */}
+            {isEditing && (
+              <Card className="apple-card p-4 rounded-2xl space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Live Post Refiner</p>
+                <Input
+                  value={generatedPost.title}
+                  onChange={(e) => setGeneratedPost({ ...generatedPost, title: e.target.value })}
+                  placeholder="Post Title"
+                  className="text-sm font-semibold"
+                />
+                <Textarea
+                  value={generatedPost.hook}
+                  onChange={(e) => setGeneratedPost({ ...generatedPost, hook: e.target.value })}
+                  placeholder="Hook"
+                  rows={2}
+                  className="text-xs"
+                />
+                <Textarea
+                  value={generatedPost.body}
+                  onChange={(e) => setGeneratedPost({ ...generatedPost, body: e.target.value })}
+                  placeholder="Body text"
+                  rows={3}
+                  className="text-xs"
+                />
+              </Card>
+            )}
 
             {/* Platform Post Canvas */}
             <div className="relative">
@@ -609,6 +875,23 @@ const Index = () => {
                       {generatedPost.body}
                     </p>
 
+                    {/* Code Snippet in macOS Terminal Frame */}
+                    {generatedPost.codeSnippet && (
+                      <div className="rounded-2xl overflow-hidden border border-slate-800 bg-[#0d1117] text-slate-200 font-mono text-xs shadow-md">
+                        <div className="px-3 py-2 bg-[#161b22] border-b border-slate-800 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-3 h-3 rounded-full bg-red-500/80 inline-block" />
+                            <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
+                            <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
+                          </div>
+                          <span className="text-[10px] text-slate-400 uppercase tracking-widest">{generatedPost.codeLanguage}</span>
+                        </div>
+                        <pre className="p-3.5 overflow-x-auto text-[11px] leading-relaxed text-slate-300">
+                          <code>{generatedPost.codeSnippet}</code>
+                        </pre>
+                      </div>
+                    )}
+
                     {/* Bullet Points */}
                     <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 space-y-1.5">
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Key Takeaways:</p>
@@ -647,10 +930,10 @@ const Index = () => {
                       </span>
                       <Button
                         size="sm"
-                        onClick={downloadImage}
+                        onClick={downloadGeneratedCard}
                         className="bg-white/90 hover:bg-white text-black font-semibold rounded-lg text-xs"
                       >
-                        <Download className="w-3.5 h-3.5 mr-1.5" /> Download
+                        <Download className="w-3.5 h-3.5 mr-1.5" /> Save Social Card
                       </Button>
                     </div>
                   </div>
@@ -658,24 +941,37 @@ const Index = () => {
                   {/* Reaction Summary Bar */}
                   <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                     <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px]">👍</span>
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px]">❤️</span>
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white text-[10px]">💡</span>
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px]">
+                        {activeReaction}
+                      </span>
                       <span className="font-medium ml-1">{reactionsCount} reactions</span>
                     </div>
-                    <span>28 comments • 14 shares</span>
+                    <span>32 comments • 18 shares</span>
                   </div>
 
-                  {/* Facebook Action Row with Interactive Spring Feedback */}
-                  <div className="p-2 grid grid-cols-3 gap-1 text-slate-600 dark:text-slate-300 text-xs font-medium">
+                  {/* Facebook Action Row with Interactive Spring Dock */}
+                  <div className="p-2 relative grid grid-cols-3 gap-1 text-slate-600 dark:text-slate-300 text-xs font-medium">
+                    {/* Floating Reaction Dock */}
+                    {showReactionDock && (
+                      <div className="absolute -top-12 left-4 z-30 apple-glass rounded-full px-3 py-1.5 flex items-center gap-2 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+                        {["👍", "❤️", "💡", "🚀", "👏", "🧠"].map(emoji => (
+                          <button
+                            key={emoji}
+                            onClick={() => handleSelectReaction(emoji)}
+                            className="text-lg hover:scale-135 transition-transform duration-150 active:scale-95"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
                     <button
-                      onClick={handleToggleReaction}
-                      className={`flex items-center justify-center gap-2 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all apple-button ${
-                        hasReacted ? "text-blue-600 font-bold" : ""
-                      }`}
+                      onClick={() => setShowReactionDock(!showReactionDock)}
+                      className="flex items-center justify-center gap-2 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all apple-button text-blue-600 font-semibold"
                     >
-                      <Heart className={`w-4 h-4 ${hasReacted ? "fill-blue-600 text-blue-600" : ""}`} />
-                      {hasReacted ? "Liked" : "Like"}
+                      <span className="text-sm">{activeReaction}</span>
+                      Like
                     </button>
                     <button
                       onClick={() => copyToClipboard(getFullFormattedText(), "Post copied to clipboard!")}
@@ -685,11 +981,11 @@ const Index = () => {
                       Comment
                     </button>
                     <button
-                      onClick={() => copyToClipboard(window.location.href, "Link copied!")}
+                      onClick={downloadGeneratedCard}
                       className="flex items-center justify-center gap-2 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all apple-button"
                     >
                       <Share2 className="w-4 h-4" />
-                      Share
+                      Export
                     </button>
                   </div>
                 </div>
@@ -722,6 +1018,17 @@ const Index = () => {
                     <p className="font-semibold text-slate-800 dark:text-slate-200">{generatedPost.hook}</p>
                     <p className="leading-relaxed">{generatedPost.body}</p>
 
+                    {generatedPost.codeSnippet && (
+                      <div className="rounded-2xl overflow-hidden border border-slate-800 bg-[#0d1117] text-slate-200 font-mono text-xs my-2">
+                        <div className="px-3 py-1.5 bg-[#161b22] border-b border-slate-800 text-[10px] text-slate-400">
+                          {generatedPost.codeLanguage}
+                        </div>
+                        <pre className="p-3 overflow-x-auto text-[11px]">
+                          <code>{generatedPost.codeSnippet}</code>
+                        </pre>
+                      </div>
+                    )}
+
                     <div className="space-y-1.5 py-1">
                       {generatedPost.bulletPoints.map((item, i) => (
                         <div key={i} className="flex items-start gap-2 text-xs">
@@ -752,10 +1059,10 @@ const Index = () => {
 
                   <div className="p-2 grid grid-cols-4 gap-1 text-slate-600 dark:text-slate-300 text-xs font-medium border-t border-slate-100 dark:border-slate-800">
                     <button
-                      onClick={handleToggleReaction}
-                      className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 apple-button"
+                      onClick={() => handleSelectReaction("💡")}
+                      className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 apple-button text-sky-600 font-semibold"
                     >
-                      <Heart className="w-4 h-4 text-sky-600" /> Like
+                      <Heart className="w-4 h-4 fill-sky-600" /> {reactionsCount}
                     </button>
                     <button className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 apple-button">
                       <MessageCircle className="w-4 h-4" /> Comment
@@ -763,8 +1070,8 @@ const Index = () => {
                     <button className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 apple-button">
                       <Repeat2 className="w-4 h-4" /> Repost
                     </button>
-                    <button className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 apple-button">
-                      <Send className="w-4 h-4" /> Send
+                    <button onClick={downloadGeneratedCard} className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 apple-button">
+                      <Send className="w-4 h-4" /> Save
                     </button>
                   </div>
                 </div>
@@ -793,6 +1100,11 @@ const Index = () => {
                     <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-xs sm:text-sm">
                       {generatedPost.body}
                     </p>
+                    {generatedPost.codeSnippet && (
+                      <div className="p-2.5 rounded-xl bg-slate-900 text-slate-200 font-mono text-[11px] overflow-x-auto">
+                        <code>{generatedPost.codeSnippet}</code>
+                      </div>
+                    )}
                     <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400 pt-1">
                       {generatedPost.bulletPoints.map((item, i) => (
                         <p key={i}>📌 {item}</p>
@@ -811,19 +1123,19 @@ const Index = () => {
 
                   <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-900">
                     <button className="flex items-center gap-1.5 hover:text-blue-500 transition-colors">
-                      <MessageCircle className="w-4 h-4" /> 42
+                      <MessageCircle className="w-4 h-4" /> 48
                     </button>
                     <button className="flex items-center gap-1.5 hover:text-emerald-500 transition-colors">
-                      <Repeat2 className="w-4 h-4" /> 18
+                      <Repeat2 className="w-4 h-4" /> 23
                     </button>
-                    <button onClick={handleToggleReaction} className="flex items-center gap-1.5 hover:text-pink-500 transition-colors">
-                      <Heart className={`w-4 h-4 ${hasReacted ? "fill-pink-500 text-pink-500" : ""}`} /> {reactionsCount}
-                    </button>
-                    <button className="flex items-center gap-1.5 hover:text-blue-500 transition-colors">
-                      <Bookmark className="w-4 h-4" /> 67
+                    <button onClick={() => setReactionsCount(r => r + 1)} className="flex items-center gap-1.5 hover:text-pink-500 transition-colors">
+                      <Heart className="w-4 h-4 fill-pink-500 text-pink-500" /> {reactionsCount}
                     </button>
                     <button className="flex items-center gap-1.5 hover:text-blue-500 transition-colors">
-                      <Share2 className="w-4 h-4" />
+                      <Bookmark className="w-4 h-4" /> 89
+                    </button>
+                    <button onClick={downloadGeneratedCard} className="flex items-center gap-1.5 hover:text-blue-500 transition-colors">
+                      <Download className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -839,7 +1151,7 @@ const Index = () => {
                       </div>
                       <div>
                         <p className="font-bold text-xs text-slate-900 dark:text-white">rahul_codes</p>
-                        <p className="text-[10px] text-slate-400">Audio: Original Tech Sound</p>
+                        <p className="text-[10px] text-slate-400">Audio: Futuristic Synthesizer</p>
                       </div>
                     </div>
                     <Instagram className="w-5 h-5 text-pink-600" />
@@ -850,7 +1162,7 @@ const Index = () => {
                   <div className="p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <Heart onClick={handleToggleReaction} className={`w-5 h-5 cursor-pointer ${hasReacted ? "fill-rose-500 text-rose-500" : ""}`} />
+                        <Heart onClick={() => setReactionsCount(r => r + 1)} className="w-5 h-5 cursor-pointer fill-rose-500 text-rose-500" />
                         <MessageCircle className="w-5 h-5 cursor-pointer" />
                         <Send className="w-5 h-5 cursor-pointer" />
                       </div>
@@ -912,7 +1224,7 @@ const Index = () => {
               </div>
               <h3 className="font-bold text-base">Automated Year Engine</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Dynamic temporal engine that auto-calibrates tags, copyrights, and roadmap trends for {currentYear}–{currentYear + 4}.
+                Dynamic temporal engine that auto-calibrates tags, copyrights, and roadmap trends for {selectedYear}–{selectedYear + 4}.
               </p>
             </div>
 
@@ -931,7 +1243,7 @@ const Index = () => {
         {/* Dynamic Multi-Year Footer */}
         <footer className="pt-12 pb-6 border-t border-slate-200 dark:border-slate-800 text-center space-y-3">
           <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
-            <span>© {currentYear} Clever Post Creator</span>
+            <span>© {selectedYear} Clever Post Creator</span>
             <span>•</span>
             <span>Crafted by Rahul Kumar</span>
             <span>•</span>
